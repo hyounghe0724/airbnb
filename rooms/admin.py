@@ -33,7 +33,9 @@ class RoomAdmin(admin.ModelAdmin):
     )
 
     search_fields = (
-        "owner__username",
+        "name",
+        "^price",
+        "=owner__username",
     )
 
 @admin.register(Amenity)
