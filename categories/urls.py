@@ -3,10 +3,15 @@ from . import views
 
 urlpatterns = [
     path(
-        "", views.Categories.as_view()
-    ),  # if import class other file class of file, write as_view
+        "",
+        views.CategoryViewSet.as_view(
+            {"get": "list", "post": "create"},
+        ),
+    ),  # if import class other file(in case view.py) class of file, write as_view
     path(
         "<int:pk>",
-        views.CategoryDetail.as_view(),
+        views.CategoryViewSet.as_view(
+            {"get": "retrieve", "put": "partial_update", "delete": "destroy"},
+        ),
     ),
 ]
