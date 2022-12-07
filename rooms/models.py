@@ -40,7 +40,7 @@ class Room(CommonModel):
     owner = models.ForeignKey(
         "users.User",
         on_delete=models.CASCADE,
-        related_name="rooms", # reverse accessor
+        related_name="rooms",  # reverse accessor
     )
     """
     reverse accessor
@@ -68,14 +68,13 @@ class Room(CommonModel):
     def rating(room):
         count = room.reviews.count()
         if count == 0:
-            return "No Reviews"
+            return 0
         else:
             total_rating = 0
-            for review in room.reviews.all().values("rating"): 
-                #value("변수명(in models)")으로 전체가아닌 원하는 것만 빼옴 => 최적화
-                total_rating += review['rating']
+            for review in room.reviews.all().values("rating"):
+                # value("변수명(in models)")으로 전체가아닌 원하는 것만 빼옴 => 최적화
+                total_rating += review["rating"]
             return round(total_rating / count, 2)
-
 
 
 class Amenity(CommonModel):
