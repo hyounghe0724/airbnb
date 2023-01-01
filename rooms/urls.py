@@ -7,6 +7,7 @@ urlpatterns = [
     path("<int:pk>/amenities", views.RoomAmenities.as_view()),
     path("<int:pk>/photos", views.RoomPhotos.as_view()),
     path("<int:pk>/bookings", views.RoomBookings.as_view()),
+    path("<int:pk>/bookings/<int:bk_pk>", views.RoomBookingsRevise.as_view()),
     # room id / amenities - list of amenitites pagiantions
     path("<int:pk>/reviews", views.RoomReviews.as_view()),
     path("amenities/", views.Amenities.as_view()),

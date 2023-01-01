@@ -19,7 +19,11 @@ from .serializers import AmenitySerializer, RoomListSerializer, RoomDetailSerial
 from reviews.serializers import ReviewSerializer
 from medias.serializers import PhotoSerializer
 from bookings.models import Booking
-from bookings.serializers import PublicBookingSerializer, CreateRoomBookingSerializer
+from bookings.serializers import (
+    PublicBookingSerializer,
+    CreateRoomBookingSerializer,
+    ReviseRoomBookingSerializer,
+)
 
 # Create your views here.
 
@@ -140,38 +144,29 @@ class RoomDetail(APIView):
             partial=True,
         )  # python data
         if serializer.is_valid():
-            category_pk = request.data("category")
-            if category_pk:
+            if "category" in request.data:
+                category_pk = request.data.get("category")
+
                 try:
                     category = Category.objects.get(pk=category_pk)
                     if category.kind == Category.CategoryKindChoices.EXPERIENCES:
                         raise ParseError("Category kind should be rooms")
+                    room.category = category
                 except Category.DoesNotExist:
-                    raise ParseError("Category model Not found")
+                    raise ParseError("Category model is not exist")
 
-            try:
-                with transaction.atomic():
-                    category_pk = request.data("category")
-                    if category_pk:
-                        room = serializer.save(category=category)
-                    else:
-                        room = serializer.save()
-                    amenities = request.data("amenities")  # user send data of ame..
-
+            if "amenity" in request.data:
+                try:
+                    amenities = request.data.get("amenities")
                     if amenities:
                         room.amenities.clear()
                         for amenity_pk in amenities:
                             amenity = Amenity.objects.get(pk=amenity_pk)
-                            room.amenities.add(amenity)
-                        updata_room = serializer.save(amenities=amenities)
-                        return Response(
-                            RoomDetailSerializer(updata_room), status=HTTP_201_CREATED
-                        )
-                    else:
-                        room = serializer.save()
-
-            except Exception:
-                raise ParseError("Amenity is not found")
+                            room.amenitys.add(amenity)
+                except Exception:
+                    raise ParseError()
+            updated_room = serializer.save()
+            return Response(RoomDetailSerializer(updated_room).data)
         else:
             return Response(serializer.errors)
 
@@ -273,7 +268,7 @@ class RoomPhotos(APIView):
             return Response(serializer.errors)
 
 
-class RoomBookings(APIView):
+class RoomBookings(APIView):  # GET POST
 
     permission_classes = [IsAuthenticatedOrReadOnly]
 
@@ -289,7 +284,7 @@ class RoomBookings(APIView):
         bookings = Booking.objects.filter(
             room=room,
             kind=Booking.BookingKindChoices.ROOM,
-            check_in__gt=now,
+            check_out__gte=now,
         )
         serializer = PublicBookingSerializer(bookings, many=True)
         return Response(serializer.data)
@@ -305,3 +300,42 @@ class RoomBookings(APIView):
             return Response(serializer.data)
         else:
             return Response(serializer.errors)
+
+    def delete(self, request, pk):
+
+        room = self.get_object(pk)
+        now = timezone.localtime(timezone.now()).date()
+        room.bookings.filter(check_out__gte=now).delete()
+        return Response(status=HTTP_204_NO_CONTENT)
+
+
+class RoomBookingsRevise(APIView):  # PUT DELETE
+    def get_object(self, bk_pk):
+        try:
+            return Booking.objects.get(pk=bk_pk)
+        except Booking.DoesNotExist:
+            raise ParseError("Booking Does not exist")
+
+    def put(self, request, pk, bk_pk):
+        booking = self.get_object(bk_pk)
+        serializer = ReviseRoomBookingSerializer(
+            booking,
+            data=request.data,
+            partial=True,
+        )
+        if serializer.is_valid():
+            if request.user == booking.user:
+
+                updated_booking = serializer.save()
+                return Response(ReviseRoomBookingSerializer(updated_booking).data)
+            else:
+                raise ParseError("You can't revise booking")
+        else:
+            return Response(serializer.errors)
+
+    def delete(self, request, pk):
+
+        room = self.get_object(pk)
+        now = timezone.localtime(timezone.now()).date()
+        room.bookings.filter(check_out__gte=now).delete()
+        return Response(status=HTTP_204_NO_CONTENT)
