@@ -69,17 +69,45 @@ class ReviseRoomBookingSerializer(serializers.ModelSerializer):
 
 
 class CreateExperienceBookingSerializer(serializers.ModelSerializer):
-
-    check_in = serializers.TimeField()
-    check_out = serializers.TimeField()
-
     class Meta:
         model = Booking
         fields = (
-            "check_in",
-            "check_out",
+            "experience_time",
             "guests",
         )
+
+    def validate_experience_time(self, value):
+        # value request user send data
+        now = timezone.now()
+        if now > value:
+            raise serializers.ValidationError("Can't book in the past!")
+        return value
+
+    """
+    experience 라서 시간대별로 체크해야함
+
+    과거의 시간대는 표시 안하고
+    현재부터 미래의 시간대만 표시 (날짜)
+    
+    room 과는 다르게 날짜 시간 둘다 따져야함
+    같은 날짜라도 시간이 다르면 이용가능
+    """
+
+
+class ReviseExperBookingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Booking
+        fields = (
+            "experience_time",
+            "guests",
+        )
+
+    def validate_experience_time(self, value):
+        # value request user send data
+        now = timezone.now()
+        if now > value:
+            raise serializers.ValidationError("Can't book in the past!")
+        return value
 
 
 class PublicBookingSerializer(serializers.ModelSerializer):

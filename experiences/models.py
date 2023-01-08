@@ -40,6 +40,7 @@ class Experience(CommonModel):
         on_delete=models.SET_NULL,
         related_name="experiences",
     )
+    experience_max_team = models.PositiveBigIntegerField(default=None, null=True)
 
     def __str__(self) -> str:
         return self.name

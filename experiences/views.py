@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.status import HTTP_204_NO_CONTENT
 from rest_framework import status
@@ -15,6 +16,7 @@ from bookings.models import Booking
 from bookings.serializers import (
     CreateExperienceBookingSerializer,
     PublicBookingSerializer,
+    ReviseExperBookingSerializer,
 )
 from rest_framework.response import Response
 
@@ -63,18 +65,21 @@ class PerkDetail(APIView):
         return Response(status=HTTP_204_NO_CONTENT)
 
 
-class Experiences(APIView):  # GET POST All Experience list
+class Experiences(APIView):  # GET POST All Experience list X
     permission_classes = [
         IsAuthenticated,
     ]
 
     def get(self, request):
 
-        experiences = Experience.objects.all()
-        serializer = ExperienceSerializer(
-            experiences, many=True, context={"request": request}
-        )
-        return Response(serializer.data)
+        try:
+            experiences = Experience.objects.all()
+            serializer = ExperienceSerializer(
+                experiences, many=True, context={"request": request}
+            )
+            return Response(serializer.data)
+        except Experience.DoesNotExist:
+            raise NotFound
 
     def post(self, request):
 
@@ -112,9 +117,8 @@ class Experiences(APIView):  # GET POST All Experience list
         else:
             raise Response(serializer.errors)
 
-class ExperienceDetail(APIView):
-    pass
-class ExperienceRevise(APIView):  # PUT DELETE
+
+class ExperienceDetail(APIView):  # GET PUT DELETE Something Experience one x
     permission_classes = [IsAuthenticated]
 
     def get_object(self, ex_pk):
@@ -123,6 +127,12 @@ class ExperienceRevise(APIView):  # PUT DELETE
             return experience
         except Experience.DoesNotExist:
             raise NotFound
+
+    def get(self, request, ex_pk):
+
+        experience = self.get_object(ex_pk)
+        serializer = ExperienceDetailSerializer(experience)
+        return Response(serializer.data)
 
     def put(self, request, ex_pk):
 
@@ -168,7 +178,7 @@ class ExperienceRevise(APIView):  # PUT DELETE
         return Response(status=HTTP_204_NO_CONTENT)
 
 
-class ExperBooking(APIView):  # GET POST
+class ExperBooking(APIView):  # GET POST Create x
     permission_classes = [IsAuthenticated]
 
     def get_object(self, ex_pk):
@@ -180,21 +190,98 @@ class ExperBooking(APIView):  # GET POST
 
     def get(self, request, ex_pk):
 
-        experience = self.get_object(ex_pk)
-        serializer = ExperienceDetailSerializer(experience)
-        return Response(serializer.data)
+        now = timezone.now()
+        try:
+            experience = self.get_object(ex_pk)
+            experience_bookings = experience.bookings.filter(experience_time__gte=now)
+            serializer = PublicBookingSerializer(experience_bookings, many=True)
+            return Response(serializer.data)
+        except Experience.DoesNotExist:
+            return Response(serializer.errors)
 
     def post(self, request, ex_pk):
 
         experience = self.get_object(ex_pk)
+        experience_time_aware_utc = request.data["experience_time"]
+        """
+        experience 시작 끝(소요시간), start, end
+        experience 예약 시간 experience_time (user send request data)
+
+        2. 소요시간 사이에도 이용불가, 필터링 필요
+        에어비엔비에서는 중복이 되는데(체험의 경우는) 중복체크를 해야하나?
+        체험 > 예약 시간 > 갯수
+        """
+        if (
+            experience.bookings.filter(
+                experience_time__exact=experience_time_aware_utc
+            ).count()
+            == experience.experience_max_team
+        ):
+            raise ParseError("Reservation be booked up")
         serializer = CreateExperienceBookingSerializer(data=request.data)
         if serializer.is_valid():
             booking = serializer.save(
                 experience=experience,
                 user=request.user,
                 kind=Booking.BookingKindChoices.EXPERIENCE,
+                check_in=None,
+                check_out=None,
             )
             serializer = PublicBookingSerializer(booking)
             return Response(serializer.data)
         else:
             return Response(serializer.errors)
+
+
+class ExperienceBookingRevise(APIView):  # GET PUT DELETE Something Experience one
+    permission_classes = [IsAuthenticated]
+
+    def get_experience_object(self, ex_pk):
+        try:
+            return Experience.objects.get(pk=ex_pk)
+        except Experience.DoesNotExist:
+            raise NotFound
+
+    def get_booking_object(self, book_pk):
+        try:
+            return Booking.objects.get(pk=book_pk)
+        except Booking.DoesNotExist:
+            raise NotFound
+
+    def put(self, request, ex_pk, book_pk):
+        """
+        vailation 검증 필요
+        post와 유사
+        직접 검증해야함 새로 예외처리 한거
+        """
+        experience = self.get_experience_object(ex_pk)
+        experience_time_aware_utc = timezone.make_aware(
+            request.data["experience_time"]
+        ).date()
+        booking = self.get_booking_object(book_pk)
+        if (
+            experience.bookings.filter(
+                experience_time__exact=experience_time_aware_utc
+            ).count()
+            == experience.experience_max_team
+        ):
+            raise ParseError("Reservation be booked up")
+        serializer = ReviseExperBookingSerializer(
+            booking,
+            request.data,
+            partial=True,
+        )
+        if serializer.is_valid():
+            updated_booking = serializer.save(
+                kind=booking.BookingKindChoices.EXPERIENCE,
+                user=request.user,
+            )
+            return Response(PublicBookingSerializer(updated_booking).data)
+        else:
+            return Response(serializer.errors)
+
+    def delete(self, request, ex_pk, book_pk):
+
+        booking = self.get_booking_object(book_pk)
+        booking.delete()
+        return Response(status=status.HTTP_201_CREATED)
