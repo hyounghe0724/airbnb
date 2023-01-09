@@ -2,7 +2,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.status import HTTP_200_OK
 from rest_framework.response import Response
-from .models import Photo
+from .models import Photo, Video
 from rest_framework.exceptions import NotFound, PermissionDenied
 
 
@@ -23,4 +23,24 @@ class PhotoDetail(APIView):
         ):
             raise PermissionDenied
         photo.delete()
+        return Response(status=HTTP_200_OK)
+
+
+class VideoDetail(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self, pk):
+        try:
+            return Video.objects.get(pk=pk)
+        except Video.DoesNotExist:
+            raise NotFound
+
+    def delete(self, request, pk):
+        video = self.get_object(pk)
+        if (video.room and video.room.owner != request.user) or (
+            video.experience and video.experience.host != request.user
+        ):
+            raise PermissionDenied
+        video.delete()
         return Response(status=HTTP_200_OK)

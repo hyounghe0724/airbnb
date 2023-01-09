@@ -3,10 +3,16 @@ from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.status import HTTP_204_NO_CONTENT
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.exceptions import NotFound, ParseError
+from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
+from rest_framework.exceptions import (
+    NotFound,
+    ParseError,
+    NotAuthenticated,
+    PermissionDenied,
+)
 from .models import Perk, Experience
 from categories.models import Category
+from medias.serializers import PhotoSerializer, VideoSerializer
 from .serializers import (
     PerkSerializer,
     ExperienceSerializer,
@@ -271,3 +277,52 @@ class ExperienceBookingRevise(APIView):  # GET PUT DELETE Something Experience o
         booking = self.get_booking_object(book_pk)
         booking.delete()
         return Response(status=status.HTTP_201_CREATED)
+
+
+class ExperienceVideo(APIView):
+
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
+    def get_object(self, pk):
+        try:
+            return Experience.objects.get(pk=pk)
+        except Experience.DoesNotExist:
+            raise NotFound
+
+    def post(self, request, pk):
+
+        experience = self.get_object(pk)
+        if not request.user.is_authenticated:
+            raise NotAuthenticated
+        if request.user != experience.host:
+            raise PermissionDenied
+        serializer = VideoSerializer(data=request.data)
+        if serializer.is_valid():
+            video = serializer.save(experience=experience)
+            return Response(VideoSerializer(video).data)
+        else:
+            return Response(VideoSerializer(video).errors)
+
+
+class ExperiencePhoto(APIView):
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
+    def get_object(self, pk):
+        try:
+            return Experience.objects.get(pk=pk)
+        except Experience.DoesNotExist:
+            raise NotFound
+
+    def post(self, request, pk):
+
+        experience = self.get_object(pk)
+        if not request.user.is_authenticated:
+            raise NotAuthenticated
+        if request.user != experience.host:
+            raise PermissionDenied
+        serializer = PhotoSerializer(data=request.data)
+        if serializer.is_valid():
+            photo = serializer.save(experience=experience)
+            return Response(PhotoSerializer(photo).data)
+        else:
+            return Response(PhotoSerializer(photo).errors)
