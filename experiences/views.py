@@ -16,7 +16,6 @@ from bookings.models import Booking
 from bookings.serializers import (
     CreateExperienceBookingSerializer,
     PublicBookingSerializer,
-    ReviseExperBookingSerializer,
 )
 from rest_framework.response import Response
 
@@ -203,14 +202,6 @@ class ExperBooking(APIView):  # GET POST Create x
 
         experience = self.get_object(ex_pk)
         experience_time_aware_utc = request.data["experience_time"]
-        """
-        experience 시작 끝(소요시간), start, end
-        experience 예약 시간 experience_time (user send request data)
-
-        2. 소요시간 사이에도 이용불가, 필터링 필요
-        에어비엔비에서는 중복이 되는데(체험의 경우는) 중복체크를 해야하나?
-        체험 > 예약 시간 > 갯수
-        """
         if (
             experience.bookings.filter(
                 experience_time__exact=experience_time_aware_utc
@@ -249,11 +240,6 @@ class ExperienceBookingRevise(APIView):  # GET PUT DELETE Something Experience o
             raise NotFound
 
     def put(self, request, ex_pk, book_pk):
-        """
-        vailation 검증 필요
-        post와 유사
-        직접 검증해야함 새로 예외처리 한거
-        """
         experience = self.get_experience_object(ex_pk)
         experience_time_aware_utc = timezone.make_aware(
             request.data["experience_time"]
@@ -266,7 +252,7 @@ class ExperienceBookingRevise(APIView):  # GET PUT DELETE Something Experience o
             == experience.experience_max_team
         ):
             raise ParseError("Reservation be booked up")
-        serializer = ReviseExperBookingSerializer(
+        serializer = CreateExperienceBookingSerializer(
             booking,
             request.data,
             partial=True,

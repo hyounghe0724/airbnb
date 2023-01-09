@@ -22,7 +22,6 @@ from bookings.models import Booking
 from bookings.serializers import (
     PublicBookingSerializer,
     CreateRoomBookingSerializer,
-    ReviseRoomBookingSerializer,
 )
 
 # Create your views here.
@@ -318,7 +317,7 @@ class RoomBookingsRevise(APIView):  # PUT DELETE
 
     def put(self, request, pk, bk_pk):
         booking = self.get_object(bk_pk)
-        serializer = ReviseRoomBookingSerializer(
+        serializer = CreateRoomBookingSerializer(
             booking,
             data=request.data,
             partial=True,
@@ -327,7 +326,7 @@ class RoomBookingsRevise(APIView):  # PUT DELETE
             if request.user == booking.user:
 
                 updated_booking = serializer.save()
-                return Response(ReviseRoomBookingSerializer(updated_booking).data)
+                return Response(PublicBookingSerializer(updated_booking).data)
             else:
                 raise ParseError("You can't revise booking")
         else:
